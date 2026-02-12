@@ -533,6 +533,16 @@ else:
     print('PEON_EXIT=true')
     sys.exit(0)
 
+# --- Debounce rapid Stop events (e.g. background task completions) ---
+if event == 'Stop':
+    now = time.time()
+    last_stop = state.get('last_stop_time', 0)
+    if now - last_stop < 5:
+        category = ''
+        notify = ''
+    state['last_stop_time'] = now
+    state_dirty = True
+
 # --- Check if category is enabled ---
 if category and not cat_enabled.get(category, True):
     category = ''

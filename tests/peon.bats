@@ -52,6 +52,33 @@ teardown() {
   [[ "$sound" == *"/packs/peon/sounds/Done"* ]]
 }
 
+@test "rapid Stop events are debounced" {
+  # First Stop plays sound
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  # Second Stop within cooldown does NOT play sound
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "1" ]
+}
+
+@test "Stop plays sound again after cooldown expires" {
+  # Set last_stop_time to 10 seconds ago (beyond 5s cooldown)
+  /usr/bin/python3 -c "
+import json, time
+state = json.load(open('$TEST_DIR/.state.json'))
+state['last_stop_time'] = time.time() - 10
+json.dump(state, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
 @test "UserPromptSubmit does NOT play sound normally" {
   run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
