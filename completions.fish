@@ -28,6 +28,7 @@ complete -c peon -n __peon_no_subcommand -a toggle -d "Toggle mute on/off"
 complete -c peon -n __peon_no_subcommand -a status -d "Show current status"
 complete -c peon -n __peon_no_subcommand -a packs -d "Manage sound packs"
 complete -c peon -n __peon_no_subcommand -a notifications -d "Control desktop notifications"
+complete -c peon -n __peon_no_subcommand -a relay -d "Start audio relay for devcontainers"
 complete -c peon -n __peon_no_subcommand -a help -d "Show help message"
 
 # packs subcommands

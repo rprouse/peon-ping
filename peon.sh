@@ -10,6 +10,8 @@ detect_platform() {
     Linux)
       if grep -qi microsoft /proc/version 2>/dev/null; then
         echo "wsl"
+      elif [ "${REMOTE_CONTAINERS:-}" = "true" ] || [ "${CODESPACES:-}" = "true" ]; then
+        echo "devcontainer"
       else
         echo "linux"
       fi ;;
@@ -163,6 +165,21 @@ play_sound() {
       " &>/dev/null &
       save_sound_pid $!
       ;;
+    devcontainer)
+      local relay_host="${PEON_RELAY_HOST:-host.docker.internal}"
+      local relay_port="${PEON_RELAY_PORT:-19998}"
+      local rel_path="${file#$PEON_DIR/}"
+      local encoded_path
+      encoded_path=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$rel_path" 2>/dev/null || echo "$rel_path")
+      if [ "${PEON_TEST:-0}" = "1" ]; then
+        curl -sf -H "X-Volume: $vol" \
+          "http://${relay_host}:${relay_port}/play?file=${encoded_path}" 2>/dev/null
+      else
+        nohup curl -sf -H "X-Volume: $vol" \
+          "http://${relay_host}:${relay_port}/play?file=${encoded_path}" >/dev/null 2>&1 &
+        save_sound_pid $!
+      fi
+      ;;
     linux)
       local player
       player=$(detect_linux_player) || player=""
@@ -277,6 +294,17 @@ APPLESCRIPT
         rm -rf "$slot_dir/slot-$slot"
       ) &
       ;;
+    devcontainer)
+      local relay_host="${PEON_RELAY_HOST:-host.docker.internal}"
+      local relay_port="${PEON_RELAY_PORT:-19998}"
+      local json_title json_msg
+      json_title=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$title" 2>/dev/null || echo "\"$title\"")
+      json_msg=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$msg" 2>/dev/null || echo "\"$msg\"")
+      nohup curl -sf -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"title\":${json_title},\"message\":${json_msg},\"color\":\"$color\"}" \
+        "http://${relay_host}:${relay_port}/notify" >/dev/null 2>&1 &
+      ;;
     linux)
       if command -v notify-send &>/dev/null; then
         local urgency="normal"
@@ -306,6 +334,10 @@ terminal_is_focused() {
       ;;
     wsl)
       # Checking Windows focus from WSL adds too much latency; always notify
+      return 1
+      ;;
+    devcontainer)
+      # Cannot detect host window focus from a container; always notify
       return 1
       ;;
     linux)
@@ -568,6 +600,16 @@ if rotation:
       *)
         echo "Usage: peon packs <list|use|next|remove>" >&2; exit 1 ;;
     esac ;;
+  relay)
+    RELAY_SCRIPT="$PEON_DIR/relay.sh"
+    if [ ! -f "$RELAY_SCRIPT" ]; then
+      echo "Error: relay.sh not found at $PEON_DIR" >&2
+      echo "Re-run the installer to get the relay script." >&2
+      exit 1
+    fi
+    shift
+    exec bash "$RELAY_SCRIPT" "$@"
+    ;;
   help|--help|-h)
     cat <<'HELPEOF'
 Usage: peon <command>
@@ -586,6 +628,9 @@ Pack management:
   packs use <name>     Switch to a specific pack
   packs next           Cycle to the next pack
   packs remove <p1,p2> Remove specific packs
+
+Relay (devcontainer/Codespaces):
+  relay [--port=N]     Start audio relay on the host
 HELPEOF
     exit 0 ;;
   --*)
@@ -898,6 +943,16 @@ fi
 # --- Show pause status on SessionStart ---
 if [ "$EVENT" = "SessionStart" ] && [ "$PAUSED" = "true" ]; then
   echo "peon-ping: sounds paused — run 'peon resume' or '/peon-ping-toggle' to unpause" >&2
+fi
+
+# --- Devcontainer relay guidance on SessionStart ---
+if [ "$EVENT" = "SessionStart" ] && [ "$PLATFORM" = "devcontainer" ]; then
+  RELAY_HOST="${PEON_RELAY_HOST:-host.docker.internal}"
+  RELAY_PORT="${PEON_RELAY_PORT:-19998}"
+  if ! curl -sf --connect-timeout 1 --max-time 2 "http://${RELAY_HOST}:${RELAY_PORT}/health" >/dev/null 2>&1; then
+    echo "peon-ping: devcontainer detected but audio relay not reachable at ${RELAY_HOST}:${RELAY_PORT}" >&2
+    echo "peon-ping: run 'peon relay' on your host machine to enable sounds" >&2
+  fi
 fi
 
 # --- Build tab title ---

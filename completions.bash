@@ -35,7 +35,7 @@ _peon_completions() {
   fi
 
   # Top-level commands
-  COMPREPLY=( $(compgen -W "pause resume toggle status packs notifications help" -- "$cur") )
+  COMPREPLY=( $(compgen -W "pause resume toggle status packs notifications relay help" -- "$cur") )
   return 0
 }
 

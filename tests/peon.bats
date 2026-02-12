@@ -915,3 +915,103 @@ JSON
   [[ "$cmdline" != *"volume"* ]]
   [[ "$cmdline" != *"-v "* ]]
 }
+
+# ============================================================
+# Devcontainer detection and relay playback
+# ============================================================
+
+@test "devcontainer plays sound via relay curl" {
+  export PLATFORM=devcontainer
+  touch "$TEST_DIR/.relay_available"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  relay_was_called
+  cmdline=$(relay_cmdline)
+  [[ "$cmdline" == *"/play?"* ]]
+  [[ "$cmdline" == *"X-Volume"* ]]
+}
+
+@test "devcontainer does not call afplay or linux audio" {
+  export PLATFORM=devcontainer
+  touch "$TEST_DIR/.relay_available"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+  ! linux_audio_was_called
+}
+
+@test "devcontainer exits cleanly when relay unavailable" {
+  export PLATFORM=devcontainer
+  # .relay_available NOT created, so mock curl returns exit 7
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+}
+
+@test "devcontainer SessionStart shows relay guidance when relay unavailable" {
+  export PLATFORM=devcontainer
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [[ "$PEON_STDERR" == *"relay not reachable"* ]]
+  [[ "$PEON_STDERR" == *"peon relay"* ]]
+}
+
+@test "devcontainer SessionStart does NOT show relay guidance when relay available" {
+  export PLATFORM=devcontainer
+  touch "$TEST_DIR/.relay_available"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [[ "$PEON_STDERR" != *"relay not reachable"* ]]
+}
+
+@test "devcontainer relay respects PEON_RELAY_HOST override" {
+  export PLATFORM=devcontainer
+  export PEON_RELAY_HOST="custom.host.local"
+  touch "$TEST_DIR/.relay_available"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  relay_was_called
+  cmdline=$(relay_cmdline)
+  [[ "$cmdline" == *"custom.host.local"* ]]
+}
+
+@test "devcontainer relay respects PEON_RELAY_PORT override" {
+  export PLATFORM=devcontainer
+  export PEON_RELAY_PORT="12345"
+  touch "$TEST_DIR/.relay_available"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  relay_was_called
+  cmdline=$(relay_cmdline)
+  [[ "$cmdline" == *"12345"* ]]
+}
+
+@test "devcontainer volume passed in X-Volume header" {
+  export PLATFORM=devcontainer
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.7, "enabled": true, "categories": {} }
+JSON
+  touch "$TEST_DIR/.relay_available"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  relay_was_called
+  cmdline=$(relay_cmdline)
+  [[ "$cmdline" == *"X-Volume: 0.7"* ]]
+}
+
+@test "devcontainer Stop event plays via relay" {
+  export PLATFORM=devcontainer
+  touch "$TEST_DIR/.relay_available"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  relay_was_called
+  # Check that /play? appears somewhere in the log (not just last line, since /notify comes after)
+  grep -q "/play?" "$TEST_DIR/relay_curl.log"
+}
+
+@test "devcontainer notification sent via relay POST" {
+  export PLATFORM=devcontainer
+  touch "$TEST_DIR/.relay_available"
+  # PermissionRequest triggers notification
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  # Should have both /play and /notify relay calls
+  relay_was_called
+  grep -q "/notify" "$TEST_DIR/relay_curl.log"
+}

@@ -40,6 +40,8 @@ detect_platform() {
     Linux)
       if grep -qi microsoft /proc/version 2>/dev/null; then
         echo "wsl"
+      elif [ "${REMOTE_CONTAINERS:-}" = "true" ] || [ "${CODESPACES:-}" = "true" ]; then
+        echo "devcontainer"
       else
         echo "linux"
       fi ;;
@@ -64,8 +66,8 @@ else
 fi
 
 # --- Prerequisites ---
-if [ "$PLATFORM" != "mac" ] && [ "$PLATFORM" != "wsl" ] && [ "$PLATFORM" != "linux" ]; then
-  echo "Error: peon-ping requires macOS, Linux, or WSL (Windows Subsystem for Linux)"
+if [ "$PLATFORM" != "mac" ] && [ "$PLATFORM" != "wsl" ] && [ "$PLATFORM" != "linux" ] && [ "$PLATFORM" != "devcontainer" ]; then
+  echo "Error: peon-ping requires macOS, Linux, WSL, or a devcontainer"
   exit 1
 fi
 
@@ -87,6 +89,12 @@ elif [ "$PLATFORM" = "wsl" ]; then
   if ! command -v wslpath &>/dev/null; then
     echo "Error: wslpath is required (should be built into WSL)"
     exit 1
+  fi
+elif [ "$PLATFORM" = "devcontainer" ]; then
+  echo "Devcontainer detected. Audio will play through the relay on your host."
+  echo "Run 'peon relay' on your host machine after installation."
+  if ! command -v curl &>/dev/null; then
+    echo "Warning: curl not found. Install curl for relay audio playback."
   fi
 elif [ "$PLATFORM" = "linux" ]; then
   LINUX_PLAYER=""
@@ -133,6 +141,7 @@ mkdir -p "$INSTALL_DIR"
 if [ -n "$SCRIPT_DIR" ]; then
   # Local clone — copy core tool files
   cp "$SCRIPT_DIR/peon.sh" "$INSTALL_DIR/"
+  cp "$SCRIPT_DIR/relay.sh" "$INSTALL_DIR/"
   cp "$SCRIPT_DIR/completions.bash" "$INSTALL_DIR/"
   cp "$SCRIPT_DIR/completions.fish" "$INSTALL_DIR/"
   cp "$SCRIPT_DIR/VERSION" "$INSTALL_DIR/"
@@ -152,6 +161,7 @@ else
   # curl|bash — download core tool files from GitHub
   echo "Downloading from GitHub..."
   curl -fsSL "$REPO_BASE/peon.sh" -o "$INSTALL_DIR/peon.sh"
+  curl -fsSL "$REPO_BASE/relay.sh" -o "$INSTALL_DIR/relay.sh"
   curl -fsSL "$REPO_BASE/completions.bash" -o "$INSTALL_DIR/completions.bash"
   curl -fsSL "$REPO_BASE/completions.fish" -o "$INSTALL_DIR/completions.fish"
   curl -fsSL "$REPO_BASE/VERSION" -o "$INSTALL_DIR/VERSION"
@@ -259,6 +269,7 @@ for cat in m.get('categories', {}).values():
 done
 
 chmod +x "$INSTALL_DIR/peon.sh"
+chmod +x "$INSTALL_DIR/relay.sh"
 
 # --- Install skill (slash command) ---
 SKILL_DIR="$BASE_DIR/skills/peon-ping-toggle"
@@ -429,8 +440,13 @@ fi
 
 # --- Test sound ---
 echo ""
-echo "Testing sound..."
-ACTIVE_PACK=$(python3 -c "
+if [ "$PLATFORM" = "devcontainer" ]; then
+  echo "Skipping test sound (devcontainer — start relay on host to test)"
+  echo "  Host: peon relay"
+  echo "  Test: curl -sf http://host.docker.internal:19998/health"
+else
+  echo "Testing sound..."
+  ACTIVE_PACK=$(python3 -c "
 import json
 try:
     c = json.load(open('$INSTALL_DIR/config.json'))
@@ -438,41 +454,42 @@ try:
 except:
     print('peon')
 " 2>/dev/null)
-PACK_DIR="$INSTALL_DIR/packs/$ACTIVE_PACK"
-TEST_SOUND=$({ ls "$PACK_DIR/sounds/"*.wav "$PACK_DIR/sounds/"*.mp3 "$PACK_DIR/sounds/"*.ogg 2>/dev/null || true; } | head -1)
-if [ -n "$TEST_SOUND" ]; then
-  if [ "$PLATFORM" = "mac" ]; then
-    afplay -v 0.3 "$TEST_SOUND"
-  elif [ "$PLATFORM" = "wsl" ]; then
-    wpath=$(wslpath -w "$TEST_SOUND")
-    # Convert backslashes to forward slashes for file:/// URI
-    wpath="${wpath//\\//}"
-    powershell.exe -NoProfile -NonInteractive -Command "
-      Add-Type -AssemblyName PresentationCore
-      \$p = New-Object System.Windows.Media.MediaPlayer
-      \$p.Open([Uri]::new('file:///$wpath'))
-      \$p.Volume = 0.3
-      Start-Sleep -Milliseconds 200
-      \$p.Play()
-      Start-Sleep -Seconds 3
-      \$p.Close()
-    " 2>/dev/null
-  elif [ "$PLATFORM" = "linux" ]; then
-    if command -v pw-play &>/dev/null; then
-      pw-play --volume=0.3 "$TEST_SOUND" 2>/dev/null
-    elif command -v paplay &>/dev/null; then
-      paplay --volume="$(python3 -c "print(int(0.3 * 65536))")" "$TEST_SOUND" 2>/dev/null
-    elif command -v ffplay &>/dev/null; then
-      ffplay -nodisp -autoexit -volume 30 "$TEST_SOUND" 2>/dev/null
-    elif command -v mpv &>/dev/null; then
-      mpv --no-video --volume=30 "$TEST_SOUND" 2>/dev/null
-    elif command -v aplay &>/dev/null; then
-      aplay -q "$TEST_SOUND" 2>/dev/null
+  PACK_DIR="$INSTALL_DIR/packs/$ACTIVE_PACK"
+  TEST_SOUND=$({ ls "$PACK_DIR/sounds/"*.wav "$PACK_DIR/sounds/"*.mp3 "$PACK_DIR/sounds/"*.ogg 2>/dev/null || true; } | head -1)
+  if [ -n "$TEST_SOUND" ]; then
+    if [ "$PLATFORM" = "mac" ]; then
+      afplay -v 0.3 "$TEST_SOUND"
+    elif [ "$PLATFORM" = "wsl" ]; then
+      wpath=$(wslpath -w "$TEST_SOUND")
+      # Convert backslashes to forward slashes for file:/// URI
+      wpath="${wpath//\\//}"
+      powershell.exe -NoProfile -NonInteractive -Command "
+        Add-Type -AssemblyName PresentationCore
+        \$p = New-Object System.Windows.Media.MediaPlayer
+        \$p.Open([Uri]::new('file:///$wpath'))
+        \$p.Volume = 0.3
+        Start-Sleep -Milliseconds 200
+        \$p.Play()
+        Start-Sleep -Seconds 3
+        \$p.Close()
+      " 2>/dev/null
+    elif [ "$PLATFORM" = "linux" ]; then
+      if command -v pw-play &>/dev/null; then
+        pw-play --volume=0.3 "$TEST_SOUND" 2>/dev/null
+      elif command -v paplay &>/dev/null; then
+        paplay --volume="$(python3 -c "print(int(0.3 * 65536))")" "$TEST_SOUND" 2>/dev/null
+      elif command -v ffplay &>/dev/null; then
+        ffplay -nodisp -autoexit -volume 30 "$TEST_SOUND" 2>/dev/null
+      elif command -v mpv &>/dev/null; then
+        mpv --no-video --volume=30 "$TEST_SOUND" 2>/dev/null
+      elif command -v aplay &>/dev/null; then
+        aplay -q "$TEST_SOUND" 2>/dev/null
+      fi
     fi
+    echo "Sound working!"
+  else
+    echo "Warning: No sound files found. Sounds may not play."
   fi
-  echo "Sound working!"
-else
-  echo "Warning: No sound files found. Sounds may not play."
 fi
 
 echo ""
