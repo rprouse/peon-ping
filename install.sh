@@ -613,6 +613,44 @@ with open(settings_path, 'w') as f:
 print('Hooks registered for: ' + ', '.join(events))
 "
 
+# --- Remove peon-ping hooks from the OTHER settings scope to prevent doubles ---
+if [ "$LOCAL_MODE" = true ]; then
+  OTHER_SETTINGS="$GLOBAL_BASE/settings.json"
+else
+  OTHER_SETTINGS="$LOCAL_BASE/settings.json"
+fi
+
+if [ -f "$OTHER_SETTINGS" ] && [ "$OTHER_SETTINGS" != "$SETTINGS" ]; then
+  python3 -c "
+import json, os
+
+path = '$OTHER_SETTINGS'
+try:
+    with open(path) as f:
+        settings = json.load(f)
+except:
+    exit(0)
+
+hooks = settings.get('hooks', {})
+changed = False
+for event, entries in list(hooks.items()):
+    filtered = [
+        e for e in entries
+        if not any('peon-ping/peon.sh' in h.get('command', '') for h in e.get('hooks', []))
+    ]
+    if len(filtered) != len(entries):
+        hooks[event] = filtered
+        changed = True
+
+if changed:
+    settings['hooks'] = hooks
+    with open(path, 'w') as f:
+        json.dump(settings, f, indent=2)
+        f.write('\n')
+    print('Removed duplicate peon-ping hooks from ' + path)
+" 2>/dev/null || true
+fi
+
 # --- Initialize state (fresh install only) ---
 if [ "$UPDATING" = false ]; then
   echo '{}' > "$INSTALL_DIR/.state.json"
