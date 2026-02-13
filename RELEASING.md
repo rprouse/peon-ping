@@ -59,34 +59,11 @@ git push && git push --tags
 
 This triggers `.github/workflows/release.yml` which creates a GitHub Release with auto-generated notes and a `checksums.txt` asset.
 
-### 5. Update Homebrew tap
+### 5. Homebrew tap (automatic)
 
-The tap formula pins to a specific tag URL and sha256. After the tag is pushed:
+The `update-tap` job in `release.yml` automatically updates `PeonPing/homebrew-tap` after a successful release. It computes the tarball SHA256 and pushes a formula update.
 
-```bash
-# Get the sha256 of the new release tarball
-curl -fsSL https://github.com/PeonPing/peon-ping/archive/refs/tags/v1.7.0.tar.gz | shasum -a 256
-
-# Clone the tap repo and update the formula
-cd /tmp
-git clone https://github.com/PeonPing/homebrew-tap.git
-cd homebrew-tap
-```
-
-In `Formula/peon-ping.rb`, update these two lines:
-
-```ruby
-url "https://github.com/PeonPing/peon-ping/archive/refs/tags/v1.7.0.tar.gz"
-sha256 "<the-new-sha256>"
-```
-
-Then commit and push:
-
-```bash
-git add Formula/peon-ping.rb
-git commit -m "chore: update peon-ping to v1.7.0"
-git push
-```
+This requires a `TAP_TOKEN` repository secret with write access to the tap repo.
 
 ### 6. Verify
 
