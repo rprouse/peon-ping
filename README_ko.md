@@ -56,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh 
 ⚠️ WSL2에서는 **WAV** 이외 형식을 사용하는 사운드 팩을 사용하려면 **ffmpeg**를 설치해야 합니다. Debian 계열 배포판에서는 다음으로 설치하세요.
 
 ```sh
-sudo apt update; sudu apt install -y ffmpeg
+sudo apt update; sud0 apt install -y ffmpeg
 ```
 
 ### 방법 3: Windows 설치

@@ -56,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh 
 ⚠️ In WSL2, **ffmpeg** must be installed to use sound packs that use formats other than **WAV**. In Debian distros, install with
 
 ```sh
-sudo apt update; sudu apt install -y ffmpeg
+sudo apt update; sudo apt install -y ffmpeg
 ```
 
 ### Option 3: Installer for Windows
