@@ -76,7 +76,7 @@ if [ "$OPENCLAW_MODE" = false ]; then
   INSTALL_DIR="$BASE_DIR/hooks/peon-ping"
   SETTINGS="$BASE_DIR/settings.json"
 fi
-REPO_BASE="https://raw.githubusercontent.com/dieterpl/peon-ping/feat/relay-state-push"
+REPO_BASE="https://raw.githubusercontent.com/PeonPing/peon-ping/main"
 REGISTRY_URL="https://peonping.github.io/registry/index.json"
 
 if [ "$INIT_LOCAL_CONFIG" = true ]; then
