@@ -188,6 +188,7 @@ PORT = int(sys.argv[4])
 
 CONFIG_FILE = os.path.join(PEON_DIR, "config.json")
 STATE_FILE = os.path.join(PEON_DIR, ".state.json")
+REMOTE_STATE_FILE = os.path.join(PEON_DIR, ".remote_state.json")
 
 # Build list of allowed path prefixes (PEON_DIR + any symlink targets within it)
 ALLOWED_PREFIXES = [PEON_DIR + os.sep]
@@ -444,11 +445,15 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/state":
-            state = load_state()
+            try:
+                with open(REMOTE_STATE_FILE) as f:
+                    data = f.read()
+            except FileNotFoundError:
+                data = "{}"
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps(state).encode())
+            self.wfile.write(data.encode())
             return
 
         if parsed.path != "/play":
@@ -525,9 +530,17 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
             if not isinstance(last_active, dict) or "timestamp" not in last_active:
                 self.send_error(400, "Invalid last_active")
                 return
-            state = load_state()
+            state = {}
+            try:
+                with open(REMOTE_STATE_FILE) as f:
+                    state = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                pass
             state["last_active"] = last_active
-            save_state(state)
+            tmp = REMOTE_STATE_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(state, f)
+            os.replace(tmp, REMOTE_STATE_FILE)
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
             self.end_headers()

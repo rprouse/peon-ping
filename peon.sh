@@ -3260,10 +3260,10 @@ if trainer_cfg.get('enabled', False):
 if state_dirty:
     os.makedirs(os.path.dirname(state_file) or '.', exist_ok=True)
     json.dump(state, open(state_file, 'w'))
-    # --- Relay state push (SSH / devcontainer) ---
-    _relay_platform = os.environ.get('PEON_ENV_PLATFORM', '')
-    if _relay_platform in ('ssh', 'devcontainer') and state.get('last_active'):
+    # --- Relay state push ---
+    if state.get('last_active'):
         import urllib.request as _ureq
+        _relay_platform = os.environ.get('PEON_ENV_PLATFORM', '')
         _relay_host = os.environ.get('PEON_RELAY_HOST',
             'host.docker.internal' if _relay_platform == 'devcontainer' else 'localhost')
         _relay_port = os.environ.get('PEON_RELAY_PORT', '19998')
