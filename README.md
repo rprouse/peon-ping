@@ -14,7 +14,7 @@ AI coding agents don't notify you when they finish or need permission. You tab a
 
 **See it in action** &rarr; [peonping.com](https://peonping.com/)
 
-<video src="docs/public/demo-avatar.mp4" autoplay loop muted playsinline width="400"></video>
+<video src="https://github.com/user-attachments/assets/149b6d15-65c2-41f2-9b56-13575ff8364b" autoplay loop muted playsinline width="400"></video>
 
 </div>
 
