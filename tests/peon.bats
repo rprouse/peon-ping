@@ -941,20 +941,23 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
   [[ "$output" == *"sc_kerrigan"* ]]
 }
 
-@test "packs list marks the active pack with *" {
+@test "packs list marks the active pack with <-- active" {
   run bash "$PEON_SH" packs list
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Orc Peon *"* ]]
+  [[ "$output" == *"<-- active"* ]]
+  # peon should be marked active (default pack)
+  line=$(echo "$output" | grep "peon")
+  [[ "$line" == *"<-- active"* ]]
   # sc_kerrigan should NOT be marked
   line=$(echo "$output" | grep "sc_kerrigan")
-  [[ "$line" != *"*"* ]]
+  [[ "$line" != *"<-- active"* ]]
 }
 
 @test "packs list marks correct pack after switch" {
   bash "$PEON_SH" packs use sc_kerrigan
   run bash "$PEON_SH" packs list
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Sarah Kerrigan (StarCraft) *"* ]]
+  [[ "$output" == *"sc_kerrigan"*"<-- active"* ]]
 }
 
 @test "packs list works when script is not in hooks dir (Homebrew install)" {
