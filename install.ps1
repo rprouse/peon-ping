@@ -868,7 +868,7 @@ if ($Command) {
                 $vol = [math]::Round([math]::Max(0.0, [math]::Min(1.0, [double]::Parse($Arg1.Trim(), [System.Globalization.CultureInfo]::InvariantCulture))), 2)
                 $volStr = $vol.ToString([System.Globalization.CultureInfo]::InvariantCulture)
                 $raw = Get-Content $ConfigPath -Raw
-                $updated = $raw -replace '"volume"\s*:\s*[\d.]+,', "`"volume`": $volStr,"
+                $updated = $raw -replace '"volume"\s*:\s*[\d.]+(,?)', "`"volume`": $volStr`$1"
                 if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
                 Write-Host "peon-ping: volume set to $vol" -ForegroundColor Green
             } else {
@@ -1351,8 +1351,12 @@ if ($notify -and $desktopNotif) {
         $marker = [char]0x25CF  # ●
         $notifTitle = "$marker $project`: $notifyStatus"
         $dismissSecs = if ($config.notification_dismiss_seconds) { $config.notification_dismiss_seconds } else { 4 }
+        # Resolve parent PID (the IDE/terminal that spawned Claude Code) for click-to-focus
+        $parentPid = 0
+        try { $parentPid = (Get-Process -Id $PID).Parent.Id } catch { $parentPid = 0 }
         $notifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
-                       "-body", $notifyMsg, "-title", $notifTitle, "-dismissSeconds", $dismissSecs)
+                       "-body", $notifyMsg, "-title", $notifTitle, "-dismissSeconds", $dismissSecs,
+                       "-parentPid", $parentPid)
         if ($iconPath) { $notifArgs += @("-iconPath", $iconPath) }
         Start-Process -FilePath "powershell.exe" -ArgumentList $notifArgs -WindowStyle Hidden
     }
